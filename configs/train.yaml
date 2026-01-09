@@ -1,0 +1,36 @@
+# Data parameters
+data_dir: '../data'
+raw_dir: '../data/phonon'
+data_file: 'DFPT_band_structure.pkl'
+out_dir: '../ckpt'
+tr_ratio: 0.9
+batch_size: 1
+r_max: 4.0
+factor: 1000
+descriptor: 'mass'
+
+# Model parameters
+mul: 4
+irreps_out: '2x0e+2x1e+2x2e'
+lmax: 2
+nlayers: 2
+number_of_basis: 10
+radial_layers: 1
+radial_neurons: 100
+node_dim: 118
+node_embed_dim: 32
+input_dim: 118
+input_embed_dim: 32
+
+# Training parameters
+run_name: "kMVN"
+max_iter: 200
+lr: 0.005
+weight_decay: 0.05
+schedule_gamma: 0.96
+seed: 42
+k_fold: 5
+
+# System
+device: 'cuda'  # 'cuda' or 'cpu'
+dtype: 'float64'  # 'float64' for e3nn compatibility

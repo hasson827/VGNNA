@@ -1,0 +1,46 @@
+# Sampling and plotting configuration for kMVN model
+
+# I/O
+out_dir: '../out'           # Output directory for plots
+config: '../configs/sample.yaml'  # Config file path
+model_path: '../ckpt/kMVN.torch'  # Path to trained model checkpoint
+
+# Data
+data_dir: '../data'           # Data directory
+raw_dir: '../data/phonon'    # Raw data directory
+data_file: 'DFPT_band_structure.pkl'  # Data file name
+tr_ratio: 0.9              # Training ratio (for loading split files)
+batch_size: 1                # Batch size (must be 1 for kMVN)
+r_max: 4                    # Maximum distance for graph edges
+factor: 1000                 # Scaling factor for frequencies
+descriptor: 'mass'            # Descriptor type
+
+# Model architecture
+mul: 4                       # Multiplicity
+irreps_out: '2x0e+2x1e+2x2e'  # Output irreps
+lmax: 2                       # Maximum l
+nlayers: 2                    # Number of layers
+number_of_basis: 10          # Number of basis functions
+radial_layers: 1              # Number of radial layers
+radial_neurons: 100           # Number of radial neurons
+node_dim: 118                 # Node dimension
+node_embed_dim: 32             # Node embedding dimension
+input_dim: 118                # Input dimension
+input_embed_dim: 32            # Input embedding dimension
+
+# System
+dtype: 'float64'              # Data type
+device: 'cuda'                # Device ('cuda' or 'cpu')
+seed: 42                      # Random seed
+
+# Plotting settings
+n: 5                          # Number of columns in plot
+m: 2                          # Number of rows per quantile
+lwidth: 0.5                    # Line width
+windowsize: [3, 2]             # Figure size [height, width]
+plot_real: true                # Whether to plot real values
+save_extension: 'jpg'           # Plot file extension
+
+# Sampling settings
+split: 'train'                  # Split to sample ('train', 'test')
+num_samples: null              # Number of samples to plot (null for all)
