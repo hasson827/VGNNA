@@ -16,17 +16,17 @@ factor: 1000                 # Scaling factor for frequencies
 descriptor: 'mass'            # Descriptor type
 
 # Model architecture
-mul: 4                       # Multiplicity
-irreps_out: '2x0e+2x1e+2x2e'  # Output irreps
-lmax: 2                       # Maximum l
-nlayers: 2                    # Number of layers
-number_of_basis: 10          # Number of basis functions
-radial_layers: 1              # Number of radial layers
-radial_neurons: 100           # Number of radial neurons
-node_dim: 118                 # Node dimension
-node_embed_dim: 32             # Node embedding dimension
-input_dim: 118                # Input dimension
-input_embed_dim: 32            # Input embedding dimension
+mul: 4
+irreps_out: '2x0e+2x1e+2x2e'
+lmax: 2
+nlayers: 2
+number_of_basis: 10
+radial_layers: 1
+radial_neurons: 100
+node_dim: 118
+node_embed_dim: 32
+input_dim: 118
+input_embed_dim: 32
 
 # System
 dtype: 'float64'              # Data type

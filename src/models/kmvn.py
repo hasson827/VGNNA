@@ -4,6 +4,8 @@ kMVN (k-Multi-Virtual Node) Graph Neural Network for Phonon Prediction
 
 import math
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch_scatter import scatter
 from e3nn.o3 import Irrep, Irreps, spherical_harmonics, TensorProduct, FullyConnectedTensorProduct
 from e3nn.nn import Gate, FullyConnectedNet
@@ -23,7 +25,7 @@ def tp_path_exists(irreps_in1, irreps_in2, ir_out):
     return False
 
 
-class CustomCompose(torch.nn.Module):
+class CustomCompose(nn.Module):
     """Custom module to sequentially apply two modules, storing intermediate outputs."""
     def __init__(self, first, second):
         super().__init__()
@@ -40,7 +42,7 @@ class CustomCompose(torch.nn.Module):
         return x
 
 
-class GraphConvolution(torch.nn.Module):
+class GraphConvolution(nn.Module):
     """Graph convolution layer that processes node and edge features."""
     def __init__(self,
                  irreps_in,
@@ -80,7 +82,7 @@ class GraphConvolution(torch.nn.Module):
                                          internal_weights=False,
                                          shared_weights=False)
         
-        self.edge2weight = FullyConnectedNet([number_of_basis] + radial_layers * [radial_neurons] + [self.tensor_edge.weight_numel], torch.nn.functional.silu)
+        self.edge2weight = FullyConnectedNet([number_of_basis] + radial_layers * [radial_neurons] + [self.tensor_edge.weight_numel], F.silu)
         self.linear_output = FullyConnectedTensorProduct(irreps_mid, self.irreps_node_attr, self.irreps_out)
 
     def forward(self,
@@ -173,7 +175,7 @@ class GraphHamiltonianConvolution(GraphConvolution):
         return Hs
 
 
-class GraphNetwork_kMVN(torch.nn.Module):
+class GraphNetwork_kMVN(nn.Module):
     """kMVN (k-Multi-Virtual Node) Graph Neural Network"""
     
     def __init__(self, mul, irreps_out, lmax, nlayers, number_of_basis, radial_layers, radial_neurons, 
@@ -187,12 +189,12 @@ class GraphNetwork_kMVN(torch.nn.Module):
         self.irreps_out = Irreps(irreps_out)
         self.number_of_basis = number_of_basis
 
-        self.act = {1: torch.nn.functional.silu, -1: torch.tanh}
-        self.act_gates = {1: torch.nn.functional.sigmoid, -1: torch.tanh}
+        self.act = {1: F.silu, -1: torch.tanh}
+        self.act_gates = {1: F.sigmoid, -1: torch.tanh}
         
         # Embedding layers
-        self.emx = torch.nn.Linear(input_dim, input_embed_dim, dtype=torch.float64)
-        self.emz = torch.nn.Linear(node_dim, node_embed_dim, dtype=torch.float64)
+        self.emx = nn.Linear(input_dim, input_embed_dim, dtype=torch.float64)
+        self.emz = nn.Linear(node_dim, node_embed_dim, dtype=torch.float64)
         
         self.layers = self._build_layers(nlayers, number_of_basis, radial_layers, radial_neurons)
         
@@ -209,7 +211,7 @@ class GraphNetwork_kMVN(torch.nn.Module):
 
     def _build_layers(self, nlayers, number_of_basis, radial_layers, radial_neurons):
         """Build layers for the network with gates and convolutions."""
-        layers = torch.nn.ModuleList()
+        layers = nn.ModuleList()
         irreps_in = self.irreps_in
         for _ in range(nlayers):
             irreps_scalars = Irreps([(mul, ir) for mul, ir in self.irreps_hidden if ir.l == 0 and tp_path_exists(irreps_in, self.irreps_edge_attr, ir)])

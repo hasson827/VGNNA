@@ -10,20 +10,20 @@ factor: 1000
 descriptor: 'mass'
 
 # Model parameters
-mul: 4
-irreps_out: '2x0e+2x1e+2x2e'
-lmax: 2
-nlayers: 2
-number_of_basis: 10
-radial_layers: 1
-radial_neurons: 100
+mul: 4                         # 不可约表示的重复次数
+irreps_out: '2x0e+2x1e+2x2e'   # 输出的不可约表示
+lmax: 2                        # 球谐函数的最大角量子数
+nlayers: 2                     # 图神经网络的层数（不包括最终的哈密顿卷积层）
+number_of_basis: 10            # 径向基函数的数量
+radial_layers: 1               # 径向神经网络中隐藏层的层数
+radial_neurons: 100            # 径向神经网络中隐藏层的神经元数量
 node_dim: 118
 node_embed_dim: 32
 input_dim: 118
 input_embed_dim: 32
 
 # Training parameters
-run_name: "kMVN"
+run_name: "kMVN_Attn"
 max_iter: 200
 lr: 0.005
 weight_decay: 0.05
