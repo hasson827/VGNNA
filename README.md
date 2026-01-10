@@ -111,6 +111,35 @@ The following figures compare the phonon band predictions between the baseline k
   <img src="out/kMVN_Attn_bands_test.jpg" width="600" alt="k-MVN with Attention Test Set">
 </p>
 
+### Detailed Model Comparison
+
+The following figure provides a comprehensive comparison between the baseline k-MVN model and the attention-enhanced model:
+
+<p align="center">
+  <img src="out/comparison_model_comparison.jpg" width="800" alt="Model Comparison">
+</p>
+
+**Left Panel - Correlation Scatter Plot:**
+- X-axis: True phonon frequencies (ω) from DFT calculations
+- Y-axis: Predicted phonon frequencies
+- Orange points: Baseline k-MVN predictions
+- Teal points: k-MVN + Attention predictions
+- Diagonal line: Perfect prediction reference
+- **R² scores quantify the prediction quality** for each model
+
+**Right Panel - Loss Distribution:**
+- X-axis: Loss values (logarithmic scale)
+- Y-axis: Probability density (KDE estimation)
+- Orange curve: Baseline k-MVN loss distribution
+- Teal curve: k-MVN + Attention loss distribution
+- The attention model's distribution is shifted toward lower loss values, indicating better overall performance
+
+**Key Observations:**
+- The attention model shows tighter clustering around the diagonal line in the scatter plot
+- R² score improves from baseline to attention model
+- Loss distribution for attention model is shifted left (lower losses)
+- Both models show similar variance, but attention model has better central tendency
+
 ### Key Findings
 
 1. **Significant Performance Gain**: The attention mechanism consistently improves prediction accuracy on both training and test sets.

@@ -384,7 +384,7 @@ def compare_models(df1, df2, header, color1, color2,
     if r2:
         R2_1 = sklearn.metrics.r2_score(y_true=re_out1, y_pred=pr_out1)
         R2_2 = sklearn.metrics.r2_score(y_true=re_out2, y_pred=pr_out2)
-        ax1.set_title(f"$R^2$ {labels[0]}: {R2_1:.3f}, {labels[1]}: {R2_2:.3f}$", fontsize=14)
+        ax1.set_title(f"$R^2$ {labels[0]}: {R2_1:.3f}, {labels[1]}: {R2_2:.3f}", fontsize=14)
 
     # Loss Distribution Plot
     ax2 = axs[1]
