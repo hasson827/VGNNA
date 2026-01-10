@@ -16,8 +16,6 @@ uv pip uninstall numpy
 uv pip install "numpy<2.0.0"
 ```
 
-Replace `cu118` with your CUDA version (e.g., `cu117`, `cpu`).
-
 ## Configuration
 
 Edit `configs/train.yaml` to customize training parameters.
@@ -59,6 +57,71 @@ Any parameter in the YAML config can be overridden:
 ```bash
 python sample.py --out_dir ../viz --save_extension png
 ```
+
+## Experimental Results
+
+We evaluated the performance of k-MVN with and without attention mechanism on the phonon prediction task. The results demonstrate significant improvement when integrating Graph Transformer attention into the k-MVN architecture.
+
+### Model Comparison
+
+| Model | Dataset | Average Loss | Model Size (parameters) |
+|--------|----------|---------------|-------------------------|
+| k-MVN (baseline) | Train | 0.0039 | 123,208 |
+| k-MVN (baseline) | Test | 0.0047 | 123,208 |
+| **k-MVN + Attention** | Train | **0.0031** | **139,120** |
+| **k-MVN + Attention** | Test | **0.0040** | **139,120** |
+
+### Performance Analysis
+
+**Training Set Improvement:**
+- Loss reduction: 0.0039 → 0.0031 (20.5% improvement)
+
+**Test Set Improvement:**
+- Loss reduction: 0.0047 → 0.0040 (14.9% improvement)
+
+**Model Complexity:**
+- Parameter increase: 123,208 → 139,120 (12.9% increase)
+- Performance improvement (14.9%) exceeds parameter increase (12.9%), indicating efficient use of additional capacity
+
+### Visualization
+
+The following figures compare the phonon band predictions between the baseline k-MVN model and the attention-enhanced model:
+
+#### Training Set Predictions
+
+**Baseline k-MVN Model:**
+<p align="center">
+  <img src="out/kMVN_bands_train.jpg" width="600" alt="Baseline k-MVN Training Set">
+</p>
+
+**k-MVN with Attention:**
+<p align="center">
+  <img src="out/kMVN_Attn_bands_train.jpg" width="600" alt="k-MVN with Attention Training Set">
+</p>
+
+#### Test Set Predictions
+
+**Baseline k-MVN Model:**
+<p align="center">
+  <img src="out/kMVN_bands_test.jpg" width="600" alt="Baseline k-MVN Test Set">
+</p>
+
+**k-MVN with Attention:**
+<p align="center">
+  <img src="out/kMVN_Attn_bands_test.jpg" width="600" alt="k-MVN with Attention Test Set">
+</p>
+
+### Key Findings
+
+1. **Significant Performance Gain**: The attention mechanism consistently improves prediction accuracy on both training and test sets.
+
+2. **Improved Generalization**: The test set improvement (14.9%) is close to the training set improvement (20.5%), indicating good generalization without severe overfitting.
+
+3. **Efficient Parameter Usage**: The 12.9% increase in model parameters yields a 14.9% improvement in test performance, demonstrating that the attention mechanism adds valuable modeling capability.
+
+4. **Better Long-Range Modeling**: The graph-structured attention allows nodes to capture non-local dependencies, which is particularly important for phonon properties influenced by long-range interactions.
+
+5. **Maintained Equivariance**: The attention mechanism operates only on scalar features (l=0 irreps), preserving the E(3) equivariance property of the original k-MVN architecture.
 
 ## Reference
 

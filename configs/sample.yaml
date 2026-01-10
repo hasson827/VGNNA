@@ -3,7 +3,10 @@
 # I/O
 out_dir: '../out'           # Output directory for plots
 config: '../configs/sample.yaml'  # Config file path
-model_path: '../ckpt/kMVN.torch'  # Path to trained model checkpoint
+model_path: '../ckpt/kMVN_best.torch'  # Path to trained model checkpoint
+run_name: "kMVN"
+split: 'test'                  # Split to sample ('train', 'test')
+num_samples: null              # Number of samples to plot (null for all)
 
 # Data
 data_dir: '../data'           # Data directory
@@ -28,6 +31,11 @@ node_embed_dim: 32
 input_dim: 118
 input_embed_dim: 32
 
+# Attention parameters
+use_attention: false        # 是否使用注意力机制
+attn_heads: 4              # 注意力头数
+attn_dropout: 0.1            # 注意力 dropout
+
 # System
 dtype: 'float64'              # Data type
 device: 'cuda'                # Device ('cuda' or 'cpu')
@@ -41,6 +49,6 @@ windowsize: [3, 2]             # Figure size [height, width]
 plot_real: true                # Whether to plot real values
 save_extension: 'jpg'           # Plot file extension
 
-# Sampling settings
-split: 'train'                  # Split to sample ('train', 'test')
-num_samples: null              # Number of samples to plot (null for all)
+# Compare Models
+baseline_model_path: '../ckpt/kMVN_best.torch'
+attention_model_path: '../ckpt/kMVN_Attn_best.torch'

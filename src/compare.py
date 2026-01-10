@@ -1,6 +1,8 @@
 """
-Sampling and plotting script for kMVN (k-Multi-Virtual Node) Graph Neural Network
-Uses functional programming style with `if __name__ == "__main__"` pattern.
+Model comparison script for k-MVN with and without attention.
+
+This script compares the performance of baseline k-MVN model and
+k-MVN with attention mechanism on the test set.
 """
 
 import os
@@ -15,7 +17,7 @@ from utils.load import load_band_structure_data
 from utils.data import generate_data_dict
 from models.kmvn import GraphNetwork_kMVN
 from utils.loss import BandLoss
-from utils.plot import generate_dataframe, plot_bands
+from utils.plot import generate_dataframe, compare_models
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -47,7 +49,7 @@ def parse_config(config_path):
 
 def find_model_file(model_path_pattern):
     """
-    Find the latest model file matching the pattern.
+    Find the latest model file matching pattern.
     
     Args:
         model_path_pattern (str): Glob pattern for model files.
@@ -55,7 +57,6 @@ def find_model_file(model_path_pattern):
     Returns:
         str: Path to the latest model file.
     """
-    # Expand pattern if it contains *
     if '*' in model_path_pattern:
         model_files = glob.glob(model_path_pattern)
         if not model_files:
@@ -73,18 +74,19 @@ def find_model_file(model_path_pattern):
         return model_path_pattern
 
 
-def load_model(config):
+def load_model(config, model_path, use_attention=False):
     """
     Load trained model from checkpoint.
     
     Args:
         config (dict): Configuration dictionary.
+        model_path (str): Path to model checkpoint.
+        use_attention (bool): Whether to use attention mechanism.
         
     Returns:
-        tuple: (model, checkpoint)
+        GraphNetwork_kMVN: Loaded model.
     """
-    print("\nLoading model...")
-    model_path = find_model_file(config['model_path'])
+    print(f"\nLoading model from: {model_path}")
     
     # Load checkpoint
     checkpoint = torch.load(model_path, map_location='cpu', weights_only=True)
@@ -102,7 +104,7 @@ def load_model(config):
         node_embed_dim=config['node_embed_dim'],
         input_dim=config['input_dim'],
         input_embed_dim=config['input_embed_dim'],
-        use_attention=config['use_attention'],
+        use_attention=use_attention,
         attn_heads=config['attn_heads'],
         attn_dropout=config['attn_dropout']
     )
@@ -120,18 +122,18 @@ def load_model(config):
     print(f"Total parameters: {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
     
-    return model, checkpoint
+    return model
 
 
-def load_data(config):
+def load_test_data(config):
     """
-    Load and prepare data for sampling.
+    Load test dataset.
     
     Args:
         config (dict): Configuration dictionary.
         
     Returns:
-        torch.utils.data.Subset: Dataset to sample from.
+        torch.utils.data.Subset: Test dataset.
     """
     data_dir = config['data_dir']
     raw_dir = config['raw_dir']
@@ -141,7 +143,6 @@ def load_data(config):
     factor = config['factor']
     tr_ratio = config['tr_ratio']
     seed = config['seed']
-    split = config['split']
     
     # Load data
     print("\nLoading data...")
@@ -155,62 +156,21 @@ def load_data(config):
         descriptor=descriptor,
         factor=factor,
     )
-    
-    # Load train/test split if exists
-    # Check if split files exist
-    possible_splits = ['train', 'val', 'test']
-    dataset = None
-    
-    # Try to load from saved split files
-    for split_name in possible_splits:
-        idx_file = os.path.join(data_dir, f'idx_*_{split_name}.txt')
-        if os.path.exists(idx_file):
-            # Find the latest index file
-            idx_files = glob.glob(os.path.join(data_dir, f'idx_*_{split_name}.txt'))
-            latest_idx_file = max(idx_files, key=os.path.getmtime)
-            
-            # Load indices
-            with open(latest_idx_file, 'r') as f:
-                indices = [int(line.strip()) for line in f]
-            
-            # Create dataset
-            data_set = torch.utils.data.Subset(list(data_dict.values()), range(len(data_dict)))
-            dataset = torch.utils.data.Subset(data_set, indices)
-            print(f"Loaded {split_name} split: {len(dataset)} samples")
-            break
-    
-    # If no split file found, create split based on split parameter
-    if dataset is None:
-        print(f"\nNo saved split found, creating split...")
-        num = len(data_dict)
-        
-        if split == 'test':
-            # Use test split (last 10%)
-            te_num = int(num * 0.1)
-            _, idx_te = train_test_split(range(num), test_size=te_num, random_state=seed)
-            data_set = torch.utils.data.Subset(list(data_dict.values()), range(len(data_dict)))
-            dataset = torch.utils.data.Subset(data_set, idx_te)
-        elif split == 'train':  # train
-            tr_num = int(num * 0.9)
-            idx_tr, _ = train_test_split(range(num), test_size=num-tr_num, random_state=seed)
-            data_set = torch.utils.data.Subset(list(data_dict.values()), range(len(data_dict)))
-            dataset = torch.utils.data.Subset(data_set, idx_tr)
-        
-        print(f"Created {split} split: {len(dataset)} samples")
-    
-    # Limit number of samples if specified
-    if config.get('num_samples') is not None and config['num_samples'] < len(dataset):
-        np.random.seed(config['seed'])
-        indices = np.random.choice(len(dataset), config['num_samples'], replace=False)
-        dataset = torch.utils.data.Subset(dataset, indices)
-        print(f"Limited to {config['num_samples']} samples")
-    
-    return dataset
 
 
-def sample_data(model, dataset, config):
+    num = len(data_dict)
+    te_num = int(num * 0.1)
+    _, idx_te = train_test_split(range(num), test_size=te_num, random_state=seed)
+    data_set = torch.utils.data.Subset(list(data_dict.values()), range(len(data_dict)))
+    test_set = torch.utils.data.Subset(data_set, idx_te)
+    print(f"Created test split: {len(test_set)} samples")
+    
+    return test_set
+
+
+def generate_predictions(model, dataset, config):
     """
-    Sample predictions from dataset.
+    Generate predictions on dataset.
     
     Args:
         model: Trained model.
@@ -220,13 +180,13 @@ def sample_data(model, dataset, config):
     Returns:
         pandas.DataFrame: DataFrame with predictions.
     """
-    print("\nSampling predictions...")
+    print("\nGenerating predictions...")
     
     # Create data loader
     from torch_geometric.loader import DataLoader
     loader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False)
     
-    # Initialize loss function for error calculation
+    # Initialize loss function
     loss_fn = BandLoss()
     
     # Generate dataframe
@@ -244,82 +204,74 @@ def sample_data(model, dataset, config):
     return df
 
 
-def plot_bands_distribution(df, config, run_name):
-    """
-    Plot phonon bands with loss distribution.
-    
-    Args:
-        df (pandas.DataFrame): DataFrame with predictions.
-        config (dict): Configuration dictionary.
-        run_name (str): Name for saving plots.
-    """
-    print("\nPlotting bands...")
-    
-    # Get plot settings from config
-    n = config.get('n', 5)
-    m = config.get('m', 2)
-    lwidth = config.get('lwidth', 0.5)
-    windowsize = tuple(config.get('windowsize', [3, 2]))
-    seed = config['seed']
-    
-    # Create output directory
-    out_dir = config['out_dir']
-    os.makedirs(out_dir, exist_ok=True)
-    
-    # Generate save path
-    header = os.path.join(out_dir, f'{run_name}_bands')
-    
-    # Plot bands
-    plot_bands(
-        df_in=df,
-        header=header,
-        title=config['split'],
-        n=n,
-        m=m,
-        lwidth=lwidth,
-        windowsize=windowsize,
-        seed=seed
-    )
-    
-    print(f"Saved plots to: {header}_*.{config['save_extension']}")
-
-
 def main():
-    """Main sampling function."""
-    # Default config path
-    default_config_path = os.path.join(os.path.dirname(__file__), '../configs/sample.yaml')
+    """Main comparison function."""
+    print("=" * 60)
+    print("Model Comparison: k-MVN vs k-MVN + Attention")
+    print("=" * 60)
     
-    # Setup configuration system
+    # Setup configuration
     config = setup_config(globals())
     
     # Use default config if not specified
     if '--config' not in sys.argv:
+        default_config_path = os.path.join(os.path.dirname(__file__), '../configs/sample.yaml')
         config = parse_config(default_config_path)
         config['config'] = default_config_path
     
     # Print configuration
-    print_config(config, process = "Sampling")
+    print_config(config, process="Comparison")
     
     # Setup environment
     setup_environment(config)
     
-    # Load model
-    model, checkpoint = load_model(config)
+    # Load test data
+    test_set = load_test_data(config)
     
-    # Load data
-    dataset = load_data(config)
+    # Load baseline model (without attention)
+    baseline_model_path = config.get('baseline_model_path', '../ckpt/kMVN_best.torch')
+    baseline_model = load_model(config, baseline_model_path, use_attention=False)
     
-    # Sample data
-    df = sample_data(model, dataset, config)
+    # Generate predictions for baseline model
+    df_baseline = generate_predictions(baseline_model, test_set, config)
     
-    # Generate run name from checkpoint
-    run_name = config['run_name']
+    # Load attention model (with attention)
+    attn_model_path = config.get('attention_model_path', '../ckpt/kMVN_Attn_best.torch')
+    attn_model = load_model(config, attn_model_path, use_attention=True)
     
-    # Plot results
-    plot_bands_distribution(df, config, run_name)
+    # Generate predictions for attention model
+    df_attn = generate_predictions(attn_model, test_set, config)
+    
+    # Create output directory
+    out_dir = config.get('out_dir', '../out')
+    os.makedirs(out_dir, exist_ok=True)
+    
+    # Generate comparison plot
+    print("\nGenerating comparison plot...")
+    compare_models(
+        df1=df_baseline,
+        df2=df_attn,
+        header=os.path.join(out_dir, 'comparison'),
+        color1='#F8961E',  # Orange for baseline
+        color2='#43AA8B',  # Teal for attention
+        labels=('k-MVN (baseline)', 'k-MVN + Attention'),
+        size=5,
+        lw=3,
+        r2=True  # Calculate and display R^2 scores
+    )
+    
+    print(f"\nComparison plot saved to: {out_dir}/comparison_model_comparison.{config['save_extension']}")
+    
+    # Save comparison results to CSV
+    comparison_csv = os.path.join(out_dir, 'comparison.csv')
+    with open(comparison_csv, 'w') as f:
+        f.write("model,average loss,num samples\n")
+        f.write(f"k-MVN (baseline),{df_baseline['loss'].mean():.4f},{len(df_baseline)}\n")
+        f.write(f"k-MVN + Attention,{df_attn['loss'].mean():.4f},{len(df_attn)}\n")
+    print(f"Comparison results saved to: {comparison_csv}")
     
     print("\n" + "=" * 60)
-    print("Sampling and plotting completed!")
+    print("Model comparison completed!")
     print("=" * 60)
 
 

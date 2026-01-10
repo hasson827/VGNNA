@@ -12,6 +12,80 @@ from e3nn.nn import Gate, FullyConnectedNet
 from e3nn.math import soft_one_hot_linspace
 
 
+class SelfAttentionLayer(nn.Module):
+    """
+    Self-attention layer for graph nodes.
+    Operates on scalar features to preserve equivariance.
+    """
+    def __init__(self, d_model, num_heads=4, dropout=0.1):
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_head = d_model // num_heads
+        
+        # Q, K, V projections
+        self.qkv = nn.Linear(d_model, d_model * 3, bias=False)
+        
+        # Output projection
+        self.out_proj = nn.Linear(d_model, d_model)
+        
+        # Dropout and normalization
+        self.dropout = nn.Dropout(dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        
+        # Feed-forward network
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_model * 4),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(d_model * 4, d_model)
+        )
+        
+    def forward(self, x, edge_index, edge_len):
+        """
+        Args:
+            x: Node features [num_nodes, d_model]
+            edge_index: Edge indices [2, num_edges]
+            edge_len: Edge lengths [num_edges]
+        Returns:
+            Enhanced node features
+        """
+        # Self-attention with residual
+        x = x + self._self_attention_block(x, edge_index, edge_len)
+        
+        # Feed-forward with residual
+        x = x + self._ffn_block(x)
+        
+        return x
+    
+    def _self_attention_block(self, x, edge_index, edge_len):
+        x_norm = self.norm1(x)
+        
+        # Compute Q, K, V
+        qkv = self.qkv(x_norm).chunk(3, dim=-1)
+        q, k, v = [t.view(-1, self.num_heads, self.d_head) for t in qkv]
+        
+        # Attention computation with graph structure (edge-level)
+        src, dst = edge_index
+        attn_scores = (q[src] * k[dst]).sum(-1) / (self.d_head ** 0.5)
+        
+        # Edge-level attention weights (no scatter here)
+        attn_weights = F.softmax(attn_scores, dim=0)
+        attn_weights = self.dropout(attn_weights)
+        
+        # Aggregate messages from edges to nodes
+        messages = v[dst] * attn_weights.unsqueeze(-1)
+        out = scatter(messages, dst, dim=0, dim_size=x.size(0), reduce='sum')
+        
+        out = out.view(-1, self.d_model)
+        return self.out_proj(out)
+    
+    def _ffn_block(self, x):
+        x_norm = self.norm2(x)
+        return self.dropout(self.ffn(x_norm))
+
+
 def tp_path_exists(irreps_in1, irreps_in2, ir_out):
     """Check if a tensor product path exists."""
     irreps_in1 = Irreps(irreps_in1).simplify()
@@ -179,7 +253,8 @@ class GraphNetwork_kMVN(nn.Module):
     """kMVN (k-Multi-Virtual Node) Graph Neural Network"""
     
     def __init__(self, mul, irreps_out, lmax, nlayers, number_of_basis, radial_layers, radial_neurons, 
-                 node_dim, node_embed_dim, input_dim, input_embed_dim, **kwargs):
+                 node_dim, node_embed_dim, input_dim, input_embed_dim, use_attention=False,
+                 attn_heads=4, attn_dropout=0.1):
         super().__init__()
         self.mul = mul
         self.irreps_in = Irreps(str(input_embed_dim) + 'x0e')
@@ -196,7 +271,7 @@ class GraphNetwork_kMVN(nn.Module):
         self.emx = nn.Linear(input_dim, input_embed_dim, dtype=torch.float64)
         self.emz = nn.Linear(node_dim, node_embed_dim, dtype=torch.float64)
         
-        self.layers = self._build_layers(nlayers, number_of_basis, radial_layers, radial_neurons)
+        self.layers = self._build_layers(nlayers, number_of_basis, radial_layers, radial_neurons, use_attention, attn_heads, attn_dropout)
         
         # Add GraphHamiltonianConvolution layer
         self.layers.append(GraphHamiltonianConvolution(
@@ -209,11 +284,11 @@ class GraphNetwork_kMVN(nn.Module):
             radial_neurons
         ))
 
-    def _build_layers(self, nlayers, number_of_basis, radial_layers, radial_neurons):
-        """Build layers for the network with gates and convolutions."""
+    def _build_layers(self, nlayers, number_of_basis, radial_layers, radial_neurons, use_attention=False, attn_heads=4, attn_dropout=0.1):
+        """Build layers for network with gates and convolutions."""
         layers = nn.ModuleList()
         irreps_in = self.irreps_in
-        for _ in range(nlayers):
+        for i in range(nlayers):
             irreps_scalars = Irreps([(mul, ir) for mul, ir in self.irreps_hidden if ir.l == 0 and tp_path_exists(irreps_in, self.irreps_edge_attr, ir)])
             irreps_gated = Irreps([(mul, ir) for mul, ir in self.irreps_hidden if ir.l > 0 and tp_path_exists(irreps_in, self.irreps_edge_attr, ir)])
             ir = '0e' if tp_path_exists(irreps_in, self.irreps_edge_attr, '0e') else '0o'
@@ -225,7 +300,16 @@ class GraphNetwork_kMVN(nn.Module):
             conv = GraphConvolution(irreps_in, self.irreps_node_attr, self.irreps_edge_attr, gate.irreps_in, number_of_basis, radial_layers, radial_neurons)
 
             irreps_in = gate.irreps_out
+            
+            # Add convolution+gate layer
             layers.append(CustomCompose(conv, gate))
+            
+            # Add attention layer (if enabled and not last convolution layer)
+            if use_attention and i < nlayers - 1:
+                attn_d_model = irreps_in.dim
+                attn_layer = SelfAttentionLayer(attn_d_model, attn_heads, attn_dropout)
+                layers.append(attn_layer)
+        
         self.irreps_in_fin = irreps_in    
         return layers
 
@@ -246,8 +330,14 @@ class GraphNetwork_kMVN(nn.Module):
         ucs = data['ucs'][0]
         n = len(ucs.shift_reverse)
 
+        # Process layers: handle both E(3)NN conv layers and attention layers
         for layer in self.layers:
-            x = layer(x, z, node_deg, edge_src, edge_dst, edge_attr, edge_length_embedded, numb, n)
+            if isinstance(layer, SelfAttentionLayer):
+                # Attention layer: pass x, edge_index, edge_len
+                x = layer(x, data['edge_index'], edge_len)
+            else:
+                # E(3)NN convolution layer: pass all required arguments
+                x = layer(x, z, node_deg, edge_src, edge_dst, edge_attr, edge_length_embedded, numb, n)
         
         return x, torch.tensor(ucs.shift_reverse, dtype=torch.complex128).to(device=x.device)
 

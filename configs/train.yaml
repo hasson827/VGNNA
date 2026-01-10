@@ -22,10 +22,15 @@ node_embed_dim: 32
 input_dim: 118
 input_embed_dim: 32
 
+# Attention parameters
+use_attention: false        # 是否使用注意力机制
+attn_heads: 4              # 注意力头数
+attn_dropout: 0.1            # 注意力 dropout
+
 # Training parameters
-run_name: "kMVN_Attn"
+run_name: "kMVN"
 max_iter: 200
-lr: 0.005
+lr: 0.003
 weight_decay: 0.05
 schedule_gamma: 0.96
 seed: 42

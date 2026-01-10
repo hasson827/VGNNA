@@ -93,7 +93,7 @@ def load_data(config):
 
 def initialize_model(config):
     """
-    Initialize kMVN model.
+    Initialize kMVN model (with or without attention).
     
     Args:
         config (dict): Configuration dictionary.
@@ -101,7 +101,7 @@ def initialize_model(config):
     Returns:
         model: Initialized GraphNetwork_kMVN model.
     """
-    print("\nInitializing model...")
+    print("\nInitializing model...")    
     model = GraphNetwork_kMVN(
         mul=config['mul'],
         irreps_out=config['irreps_out'],
@@ -113,7 +113,10 @@ def initialize_model(config):
         node_dim=config['node_dim'],
         node_embed_dim=config['node_embed_dim'],
         input_dim=config['input_dim'],
-        input_embed_dim=config['input_embed_dim']
+        input_embed_dim=config['input_embed_dim'],
+        use_attention=config['use_attention'],
+        attn_heads=config['attn_heads'],
+        attn_dropout=config['attn_dropout']
     )
 
     # Count parameters
